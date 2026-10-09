@@ -118,5 +118,7 @@ tau_bulk        = 4.5e-9     # bulk excited-state lifetime [s]
 |------|----------|-----------|
 | 2026-10-08 | Project created | Starting point for SnV phoxonic cavity design |
 | 2026-10-08 | 2D slab PCC geometry (not 1D nanobeam) | User decision: 2D cavities |
-| 2026-10-08 | First phononic script uses cross unit cell | Best-studied geometry for phononic shields; starting point before co-designed hole geometry |
+| 2026-10-08 | Cross unit cell script (superseded) | Initial starting point from Chan thesis; has phononic bandgap but NO photonic bandgap for TE modes |
+| 2026-10-09 | **Switched to snowflake crystal** | Safavi-Naeini & Painter 2010 snowflake (hexagonal lattice) has simultaneous phononic + photonic bandgap — required for phoxonic co-design. Cross is unsuitable. |
+| 2026-10-09 | Rectangular 2-atom supercell for snowflake | Allows orthogonal Floquet BCs in COMSOL (Lx=a, Ly=a√3); k-path Γ→X→S→Y→Γ |
 | 2026-10-08 | Diamond isotropic elasticity in first script | Simpler; can upgrade to cubic (c11=1076, c12=125, c44=578 GPa) once geometry is validated |
