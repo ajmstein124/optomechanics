@@ -1,28 +1,36 @@
 """
 remote_runner.py
 
-Synchronous SSH runner for executing Python scripts on the Windows COMSOL machine.
+SSH runner for executing Python or MATLAB scripts on the Windows COMSOL machine.
 Copies the script to the remote Windows drive, runs it, copies results back.
 
 Usage
 -----
-    python scripts/remote_runner.py scripts/phononic_band.py
+    # Run a MATLAB script:
+    python scripts/remote_runner.py scripts/reproduce_Si_Mech_band.m
 
-    # Install mph on the remote machine (one-time setup):
-    python scripts/remote_runner.py --setup
+    # Run a Python script:
+    python scripts/remote_runner.py scripts/some_script.py
 
-Setup checklist (one-time, on the Windows machine)
----------------------------------------------------
-1. Fill in REMOTE_HOST and REMOTE_DIR below.
+    # Copy the .mph model file to the remote machine (one-time, large file):
+    python scripts/remote_runner.py --copy-model scripts/unit_cell_3.mph
+
+    # Verify SSH + MATLAB + COMSOL are working:
+    python scripts/remote_runner.py --check
+
+Setup checklist (one-time)
+--------------------------
+1. Fill in REMOTE_HOST, REMOTE_DIR, and MATLAB_CMD below.
 2. Ensure SSH key auth works:
        ssh -i ~/.ssh/id_ed25519 REMOTE_HOST
-3. Install mph and matplotlib:
-       run: python scripts/remote_runner.py --setup
-   Or manually on the Windows machine:
-       py -3.12 -m pip install mph matplotlib numpy
-4. COMSOL must be installed; mph finds it automatically via the Windows registry.
+3. Copy the .mph model file (one-time -- 718 MB, slow):
+       python scripts/remote_runner.py --copy-model scripts/unit_cell_3.mph
+4. COMSOL LiveLink for MATLAB must be installed on the Windows machine.
+   MATLAB must be in the Windows PATH (or set full path in MATLAB_CMD below).
+5. Run the check:
+       python scripts/remote_runner.py --check
 
-Results (.npz, .png) are written to REMOTE_DIR by the script and pulled to ./results/.
+Results (.mat, .jpg, .csv, .npz, .png) are pulled to ./results/ after each run.
 """
 
 import subprocess
@@ -35,18 +43,19 @@ from pathlib import Path
 # SSH / REMOTE CONFIG  -- fill these in before first use
 # =============================================================================
 
-REMOTE_HOST = 'USERNAME@HOST'                           # e.g. 'alice@192.168.1.10'
-SSH_KEY     = os.path.expanduser('~/.ssh/id_ed25519')   # local private key path
-REMOTE_DIR  = r'C:\Users\USERNAME\Documents\optomechanics'  # <-- fill in username
+REMOTE_HOST = 'USERNAME@HOST'                               # e.g. 'alice@192.168.1.10'
+SSH_KEY     = os.path.expanduser('~/.ssh/id_ed25519')       # local private key path
+REMOTE_DIR  = r'C:\Users\USERNAME\Documents\optomechanics'  # fill in username
 PYTHON_CMD  = 'py -3.12'
+MATLAB_CMD  = 'matlab'   # full path if not in PATH, e.g. r'"C:\Program Files\MATLAB\R2024b\bin\matlab.exe"'
 
 # =============================================================================
 
 LOCAL_RESULTS = Path(__file__).parent.parent / 'results'
+RESULT_EXTS   = ('*.mat', '*.jpg', '*.csv', '*.npz', '*.png')
 
 
 def ssh(cmd, capture=False):
-    """Run a shell command on the remote Windows machine."""
     full = ['ssh', '-i', SSH_KEY, '-o', 'StrictHostKeyChecking=no', REMOTE_HOST, cmd]
     if capture:
         r = subprocess.run(full, capture_output=True, text=True)
@@ -57,43 +66,18 @@ def ssh(cmd, capture=False):
 
 
 def scp_to(local_path, remote_path):
-    """Copy a local file to the remote machine."""
     cmd = ['scp', '-i', SSH_KEY, '-o', 'StrictHostKeyChecking=no',
            str(local_path), f'{REMOTE_HOST}:{remote_path}']
     subprocess.run(cmd, check=True)
 
 
 def scp_from(remote_glob, local_dir):
-    """Pull files matching remote_glob back to local_dir."""
     os.makedirs(local_dir, exist_ok=True)
     cmd = ['scp', '-i', SSH_KEY, '-o', 'StrictHostKeyChecking=no',
            f'{REMOTE_HOST}:{remote_glob}', str(local_dir)]
     result = subprocess.run(cmd, capture_output=True)
     if result.returncode != 0:
-        print(f'  scp pull warning (may be no matching files): {result.stderr.decode()}')
-
-
-def setup_remote():
-    """Install Python dependencies on the remote machine."""
-    print('Creating remote directory...')
-    ssh(f'if not exist "{REMOTE_DIR}" mkdir "{REMOTE_DIR}"')
-
-    print('Installing Python dependencies on remote machine...')
-    rc = ssh(f'{PYTHON_CMD} -m pip install mph matplotlib numpy')
-    if rc != 0:
-        print('WARNING: pip install exited with a non-zero code. Check output above.')
-    else:
-        print('Dependencies installed successfully.')
-
-    print('Verifying mph can find COMSOL...')
-    out, err, rc = ssh(f'{PYTHON_CMD} -c "import mph; c = mph.start(); c.clear(); print(\'mph OK\')"',
-                       capture=True)
-    if rc == 0 and 'mph OK' in out:
-        print('mph + COMSOL: OK')
-    else:
-        print('mph/COMSOL check failed. stdout:', out.strip())
-        print('stderr:', err.strip())
-        print('Make sure COMSOL is installed on the remote machine.')
+        print(f'  scp pull note (may be no matching files): {result.stderr.decode().strip()}')
 
 
 def run_remote_script(script_path: str):
@@ -102,42 +86,100 @@ def run_remote_script(script_path: str):
         print(f'ERROR: script not found: {script_path}')
         sys.exit(1)
 
-    remote_script  = REMOTE_DIR + '\\' + script_path.name
-    local_configs  = Path(__file__).parent.parent / 'configs'
-    remote_configs = REMOTE_DIR + r'\configs'
+    ext = script_path.suffix.lower()
+    remote_script = REMOTE_DIR + '\\' + script_path.name
 
-    print(f'[1/4] Creating remote directories...')
+    print(f'[1/4] Creating remote directory...')
     ssh(f'if not exist "{REMOTE_DIR}" mkdir "{REMOTE_DIR}"')
-    if local_configs.exists():
-        ssh(f'if not exist "{remote_configs}" mkdir "{remote_configs}"')
 
-    print(f'[2/4] Copying {script_path.name} to Windows...')
+    print(f'[2/4] Copying {script_path.name}...')
     scp_to(script_path, remote_script)
-    if local_configs.exists():
-        for cfg_file in local_configs.glob('*.json'):
-            scp_to(cfg_file, remote_configs + '\\' + cfg_file.name)
-            print(f'       + configs/{cfg_file.name}')
 
-    print(f'[3/4] Running script on Windows (this may take a long time)...')
-    rc = ssh(f'cd "{REMOTE_DIR}" && {PYTHON_CMD} "{script_path.name}"')
+    print(f'[3/4] Running on Windows...')
+    if ext == '.m':
+        # Run MATLAB in batch mode from REMOTE_DIR so mphload finds the .mph file.
+        # -batch runs the script headlessly and exits; stdout/stderr go to the SSH stream.
+        script_name_no_ext = script_path.stem
+        run_cmd = (f'cd /d "{REMOTE_DIR}" && '
+                   f'{MATLAB_CMD} -batch "run(\'{script_name_no_ext}.m\')"')
+    else:
+        run_cmd = f'cd /d "{REMOTE_DIR}" && {PYTHON_CMD} "{script_path.name}"'
+
+    rc = ssh(run_cmd)
     if rc != 0:
         print(f'WARNING: remote script exited with code {rc}')
 
-    print(f'[4/4] Pulling results back...')
-    for ext in ('*.npz', '*.png', '*.mat', '*.csv'):
-        scp_from(REMOTE_DIR + '\\' + ext, LOCAL_RESULTS)
+    print(f'[4/4] Pulling results...')
+    results_subdirs = [REMOTE_DIR + r'\simu_data']   # MATLAB scripts save here
+    for subdir in results_subdirs:
+        # Pull recursively by pulling from subdirectories matching simu_data\*
+        scp_from(subdir + r'\*\*.mat', LOCAL_RESULTS)
+        scp_from(subdir + r'\*\*.jpg', LOCAL_RESULTS)
+    for ext_glob in RESULT_EXTS:
+        scp_from(REMOTE_DIR + '\\' + ext_glob, LOCAL_RESULTS)
     print(f'Results in: {LOCAL_RESULTS}')
 
 
+def copy_model(local_model_path: str):
+    """Copy a large model file (.mph) to the remote machine. One-time operation."""
+    p = Path(local_model_path)
+    if not p.exists():
+        print(f'ERROR: model file not found: {p}')
+        sys.exit(1)
+    remote_path = REMOTE_DIR + '\\' + p.name
+    print(f'Creating remote directory...')
+    ssh(f'if not exist "{REMOTE_DIR}" mkdir "{REMOTE_DIR}"')
+    print(f'Copying {p.name} ({p.stat().st_size / 1e6:.0f} MB) -- this will take a while...')
+    scp_to(p, remote_path)
+    print(f'Model copied to {remote_path}')
+
+
+def check_remote():
+    """Verify SSH, MATLAB, and COMSOL LiveLink are working."""
+    print('Checking SSH connection...')
+    rc = ssh('echo SSH OK')
+    if rc != 0:
+        print('ERROR: SSH connection failed.')
+        return
+
+    print('Checking MATLAB...')
+    out, err, rc = ssh(f'{MATLAB_CMD} -batch "disp(version); exit"', capture=True)
+    if rc == 0:
+        print(f'  MATLAB OK: {out.strip()[:80]}')
+    else:
+        print(f'  WARNING: MATLAB check failed (rc={rc})')
+        print(f'  stdout: {out.strip()[:200]}')
+        print(f'  stderr: {err.strip()[:200]}')
+        print(f'  Is MATLAB in PATH? Try setting full path in MATLAB_CMD.')
+        return
+
+    print('Checking COMSOL LiveLink...')
+    # Quick test: start a COMSOL server via mphstart (LiveLink function)
+    test_script = 'mphstart; disp(\'LiveLink OK\'); exit'
+    out, err, rc = ssh(f'{MATLAB_CMD} -batch "{test_script}"', capture=True)
+    if rc == 0 and 'LiveLink OK' in out:
+        print('  COMSOL LiveLink: OK')
+    else:
+        print(f'  WARNING: LiveLink check failed (rc={rc})')
+        print(f'  stdout: {out.strip()[:200]}')
+        print('  Make sure COMSOL LiveLink for MATLAB is installed.')
+
+
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Run a script remotely on the COMSOL Windows machine')
-    parser.add_argument('script', nargs='?', help='Path to the local Python script to run')
-    parser.add_argument('--setup', action='store_true',
-                        help='Install Python dependencies on the remote machine')
+    parser = argparse.ArgumentParser(
+        description='Run scripts remotely on the COMSOL Windows machine')
+    parser.add_argument('script', nargs='?',
+                        help='Path to .m or .py script to run')
+    parser.add_argument('--copy-model', metavar='MODEL_FILE',
+                        help='Copy a large .mph model file to the remote machine (one-time)')
+    parser.add_argument('--check', action='store_true',
+                        help='Verify SSH, MATLAB, and COMSOL LiveLink are working')
     args = parser.parse_args()
 
-    if args.setup:
-        setup_remote()
+    if args.check:
+        check_remote()
+    elif args.copy_model:
+        copy_model(args.copy_model)
     elif args.script:
         run_remote_script(args.script)
     else:
