@@ -43,7 +43,7 @@ from pathlib import Path
 # SSH / REMOTE CONFIG  -- fill these in before first use
 # =============================================================================
 
-REMOTE_HOST = 'jvadmin@171.64.85.12'
+REMOTE_HOST = 'jvadmin@100.92.85.99'
 SSH_KEY     = os.path.expanduser('~/.ssh/id_ed25519')
 REMOTE_DIR  = r'C:\Users\JVadmin\Documents\optomechanics'
 PYTHON_CMD  = 'py -3.12'
