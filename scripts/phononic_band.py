@@ -1,31 +1,23 @@
 """
 phononic_band.py
 
-Phononic band structure of the 2D snowflake phoxonic crystal slab in diamond.
-
-Reference
----------
-Safavi-Naeini & Painter, "Design of optomechanical cavities and waveguides on a
-simultaneous bandgap phononic-photonic crystal slab," Opt. Express 18, 14926 (2010).
+Phononic band structure of a 2D triangular lattice of circular holes in a
+diamond slab, via COMSOL 6.x (mph).
 
 Geometry
 --------
-Hexagonal lattice (period a), free-standing diamond slab (thickness d).
-Simulated with a rectangular 2-atom supercell: Lx=a, Ly=a*sqrt(3), Lz=d.
+Hexagonal (triangular) lattice, period a, free-standing diamond slab, thickness d.
+Simulated with a rectangular 2-atom supercell: Lx = a, Ly = a*sqrt(3), Lz = d.
 
-  Snowflake hole: 3 arms at 0, 60, 120 deg, each w x 2r x 1.1d, meeting at center.
-  Two holes per rectangular cell:
-    - 1 interior hole at (a/2, a*sqrt(3)/2)         -- fully inside cell
-    - 4 fractional corner holes at (0,0), (a,0),
-      (0,a*sqrt(3)), (a,a*sqrt(3))                   -- each 1/4 atom by periodicity
+  Two cylindrical holes per rectangular cell:
+    - 1 interior hole at (a/2, a*sqrt(3)/2)  -- fully inside cell
+    - 4 fractional corner holes at (0,0), (a,0), (0,a*sqrt(3)), (a,a*sqrt(3))
+      each is 1/4 atom by periodicity; Boolean Difference clips them to the slab
 
-Nominal parameters (paper Table / Fig. 6, for silicon):
-  d/a = 0.44,  r/a = 0.40,  w/a = 0.15  =>  (d,r,w,a) = (220,200,75,500) nm
+Parameters (starting point):
+  d/a = 0.44,  r/a = 0.35  =>  (d, r, a) = (220, 175, 500) nm
 
-For diamond, the same geometry ratios apply. Scale `a` to target bandgap frequency.
-Diamond phonon speed ~ 2x silicon, so for same gap frequency use a ~ 1000 nm.
-
-Band-structure path (rectangular BZ of the hexagonal lattice supercell):
+Band-structure path (rectangular BZ of the hexagonal supercell):
   Gamma (0,0) -> X (pi/a, 0) -> S (pi/a, pi/(a*sqrt(3))) -> Y (0, pi/(a*sqrt(3))) -> Gamma
 
 Usage
@@ -50,11 +42,9 @@ import mph
 # PARAMETERS
 # =============================================================================
 
-# Geometry (ratios from Safavi-Naeini & Painter 2010)
-a  = 500e-9    # lattice constant [m]  <-- main tuning knob; scale for target gap freq
+a  = 500e-9    # lattice constant [m]  -- main tuning knob; scale for target gap freq
 d  = 220e-9    # slab thickness [m]    (d/a = 0.44)
-r  = 200e-9    # snowflake arm length [m]  (r/a = 0.40)
-w  =  75e-9    # snowflake arm width  [m]  (w/a = 0.15)
+r  = 175e-9    # hole radius [m]       (r/a = 0.35; try 0.30-0.45)
 
 # Diamond material -- isotropic approximation
 E_d   = 1050e9   # Young's modulus [Pa]
@@ -70,7 +60,7 @@ eig_shift_GHz = 3.0   # eigenfrequency search center [GHz]; raise if low modes m
 
 # Output (must be a local Windows drive path)
 save_dir = r'C:\Users\hopel\Documents\Abby\optomechanics'
-tag      = f'snowflake_a{int(a*1e9)}nm_d{int(d*1e9)}nm_r{int(r*1e9)}nm_w{int(w*1e9)}nm'
+tag      = f'circles_a{int(a*1e9)}nm_d{int(d*1e9)}nm_r{int(r*1e9)}nm'
 
 # =============================================================================
 # K-PATH: Gamma -> X -> S -> Y -> Gamma  (rectangular BZ of hex supercell)
@@ -79,10 +69,10 @@ tag      = f'snowflake_a{int(a*1e9)}nm_d{int(d*1e9)}nm_r{int(r*1e9)}nm_w{int(w*1
 #   BZ boundaries:   kx_max = pi/a,  ky_max = pi/(a*sqrt(3))
 #
 #   High symmetry points:
-#     Gamma = (0,       0      )
-#     X     = (pi/a,    0      )
-#     S     = (pi/a,    pi/(a*sqrt(3)))
-#     Y     = (0,       pi/(a*sqrt(3)))
+#     Gamma = (0,       0              )
+#     X     = (pi/a,    0              )
+#     S     = (pi/a,    pi/(a*sqrt(3)) )
+#     Y     = (0,       pi/(a*sqrt(3)) )
 # =============================================================================
 
 kx_max = np.pi / a
@@ -102,7 +92,7 @@ k_path = np.vstack([
     linseg(kX, kS, n_seg),
     linseg(kS, kY, n_seg),
     linseg(kY, kG, n_seg, endpoint=True),
-])  # shape (4*n_seg+1, 2), units [rad/m]
+])  # shape (4*n_seg + 1, 2), units [rad/m]
 
 dk     = np.linalg.norm(np.diff(k_path, axis=0), axis=1)
 k_dist = np.r_[0, np.cumsum(dk)]
@@ -117,83 +107,61 @@ tick_lbl = ['G', 'X', 'S', 'Y', 'G']   # ASCII only -- Windows cp1252 safe
 
 print('Starting COMSOL server...')
 client = mph.start(cores=4)
-model  = client.create('phononic_snowflake')
+model  = client.create('phononic_circles')
 m      = model.java
 
 print('Building model...')
 
 # --- Global parameters -------------------------------------------------------
 p = m.param()
-p.set('a_sf', str(a),  'Lattice constant [m]')
-p.set('d_sf', str(d),  'Slab thickness [m]')
-p.set('r_sf', str(r),  'Snowflake arm length [m]')
-p.set('w_sf', str(w),  'Snowflake arm width [m]')
-p.set('kx',   '0',     'Bloch kx [rad/m]')
-p.set('ky',   '0',     'Bloch ky [rad/m]')
+p.set('a_lat',  str(a),  'Lattice constant [m]')
+p.set('d_slab', str(d),  'Slab thickness [m]')
+p.set('r_hole', str(r),  'Hole radius [m]')
+p.set('kx',     '0',     'Bloch kx [rad/m]')
+p.set('ky',     '0',     'Bloch ky [rad/m]')
 
 # --- Component ---------------------------------------------------------------
 comp = m.component().create('comp1', True)
 
 # --- Geometry ----------------------------------------------------------------
-# Rectangular supercell: x in [0, a_sf], y in [0, a_sf*sqrt(3)], z in [-d_sf/2, d_sf/2]
+# Rectangular supercell: x in [0, a_lat], y in [0, a_lat*sqrt(3)], z in [-d_slab/2, d_slab/2]
 geom = comp.geom().create('geom1', 3)
 geom.lengthUnit('m')
 
-# Slab
+# Slab block
 slab = geom.create('slab', 'Block')
-slab.set('size', ['a_sf', 'a_sf*sqrt(3)', 'd_sf'])
+slab.set('size', ['a_lat', 'a_lat*sqrt(3)', 'd_slab'])
 slab.set('base', 'corner')
-slab.set('pos',  ['0', '0', '-d_sf/2'])
+slab.set('pos',  ['0', '0', '-d_slab/2'])
 
-def make_snowflake_arms(geom, prefix, x0_expr, y0_expr):
-    """
-    Create 3 snowflake arms at 0, 60, 120 deg centered at (x0_expr, y0_expr).
-    Each arm: a rectangular block w_sf x 2*r_sf x 1.1*d_sf, rotated about z.
-    Returns list of geometry feature names for the 3 arms.
-    """
-    names = []
-    for ai, angle in enumerate([0, 60, 120]):
-        blk_name = f'{prefix}_b{ai}'
-        blk = geom.create(blk_name, 'Block')
-        blk.set('size', ['2*r_sf', 'w_sf', '1.1*d_sf'])   # length in x, width in y
-        blk.set('base', 'center')
-        blk.set('pos',  [x0_expr, y0_expr, '0'])
+def make_hole(geom, name, x0_expr, y0_expr):
+    """Create a cylindrical hole (radius r_hole, height 1.1*d_slab) centered at (x0, y0, 0)."""
+    cyl = geom.create(name, 'Cylinder')
+    cyl.set('r', 'r_hole')
+    cyl.set('h', '1.1*d_slab')
+    cyl.set('pos', [x0_expr, y0_expr, '-0.55*d_slab'])
+    return name
 
-        if angle == 0:
-            # No rotation needed for the 0-deg arm
-            names.append(blk_name)
-        else:
-            rot_name = f'{prefix}_r{ai}'
-            rot = geom.create(rot_name, 'Rotate')
-            rot.selection('input').set([blk_name])
-            rot.set('axistype', 'z')            # rotate about z-axis
-            rot.set('rot', str(angle))
-            rot.set('pos', [x0_expr, y0_expr, '0'])
-            names.append(rot_name)
-    return names
+hole_names = []
 
-all_arm_names = []
+# Interior hole -- fully inside the cell
+hole_names.append(make_hole(geom, 'h_int', 'a_lat/2', 'a_lat*sqrt(3)/2'))
 
-# Interior hole at (a_sf/2, a_sf*sqrt(3)/2) -- fully inside the cell
-all_arm_names += make_snowflake_arms(geom, 'h1', 'a_sf/2', 'a_sf*sqrt(3)/2')
-
-# Corner holes: 4 positions, each contributing 1/4 of a snowflake by periodicity.
-# Boolean Difference will clip each to the slab boundary automatically.
+# Corner holes -- 1/4 atom at each corner; Boolean Difference clips to slab
 corner_positions = [
-    ('0',      '0'              ),
-    ('a_sf',   '0'              ),
-    ('0',      'a_sf*sqrt(3)'   ),
-    ('a_sf',   'a_sf*sqrt(3)'   ),
+    ('0',       '0'                 ),
+    ('a_lat',   '0'                 ),
+    ('0',       'a_lat*sqrt(3)'     ),
+    ('a_lat',   'a_lat*sqrt(3)'     ),
 ]
 for ci, (x0, y0) in enumerate(corner_positions):
-    all_arm_names += make_snowflake_arms(geom, f'hc{ci}', x0, y0)
+    hole_names.append(make_hole(geom, f'h_c{ci}', x0, y0))
 
-# Union of all arms into one snowflake-holes body
+# Union all holes into one body, then subtract from slab
 uni = geom.create('uni_holes', 'Union')
-uni.selection('input').set(all_arm_names)
+uni.selection('input').set(hole_names)
 uni.set('keepSubdomains', 'off')
 
-# Subtract holes from slab
 dif = geom.create('dif1', 'Difference')
 dif.selection('input').set(['slab'])
 dif.selection('input2').set(['uni_holes'])
@@ -202,18 +170,16 @@ geom.run('fin')
 print('  Geometry built.')
 
 # --- Component-level Box Selections for the 4 lateral periodic faces ---------
-# Cell spans x in [0, a_sf], y in [0, a_sf*sqrt(3)].
-# The tolerance 'a_sf*1e-4' is much smaller than any geometric feature.
 
-def box_face_sel(comp_node, name, axis, coord_expr, tol='a_sf*1e-4'):
-    """Select faces on the plane axis=coord_expr (within tolerance)."""
+def box_face_sel(comp_node, name, axis, coord_expr, tol='a_lat*1e-4'):
+    """Select all faces on the plane axis=coord_expr (within tolerance)."""
     s = comp_node.selection().create(name, 'Box')
     s.set('entitydim', 2)
     s.set('condition', 'allvertices')
     spans = {
-        'x': ('-a_sf*0.1',  'a_sf*1.1' ),
-        'y': ('-a_sf*0.1',  'a_sf*2.0' ),
-        'z': ('-d_sf',      'd_sf'      ),
+        'x': ('-a_lat*0.1',  'a_lat*1.1'  ),
+        'y': ('-a_lat*0.1',  'a_lat*2.0'  ),
+        'z': ('-d_slab',     'd_slab'      ),
     }
     for ax in ('x', 'y', 'z'):
         if ax == axis:
@@ -223,10 +189,10 @@ def box_face_sel(comp_node, name, axis, coord_expr, tol='a_sf*1e-4'):
             s.set(f'{ax}min', spans[ax][0])
             s.set(f'{ax}max', spans[ax][1])
 
-box_face_sel(comp, 'sel_x0', 'x', '0'             )   # x = 0 face
-box_face_sel(comp, 'sel_xa', 'x', 'a_sf'          )   # x = a face
-box_face_sel(comp, 'sel_y0', 'y', '0'             )   # y = 0 face
-box_face_sel(comp, 'sel_ya', 'y', 'a_sf*sqrt(3)'  )   # y = a*sqrt(3) face
+box_face_sel(comp, 'sel_x0', 'x', '0'                )   # x = 0 face
+box_face_sel(comp, 'sel_xa', 'x', 'a_lat'            )   # x = a face
+box_face_sel(comp, 'sel_y0', 'y', '0'                )   # y = 0 face
+box_face_sel(comp, 'sel_ya', 'y', 'a_lat*sqrt(3)'    )   # y = a*sqrt(3) face
 
 # --- Material: diamond -------------------------------------------------------
 mat = comp.material().create('mat1', 'Common')
@@ -287,8 +253,7 @@ for i, (kxi, kyi) in enumerate(k_path):
 
     m.study('std1').run()
 
-    # getData() returns a list of lists: outer index = eigenmode, inner = expression.
-    # Flatten to a 1-D array of eigenfrequencies in GHz.
+    # getData() returns a list of lists: outer = eigenmode, inner = expression.
     try:
         raw = ev.getData()
         row = np.array([float(entry[0]) for entry in raw], dtype=float)
@@ -312,7 +277,7 @@ for i, (kxi, kyi) in enumerate(k_path):
 
 def find_bandgaps(freqs, tol_frac=0.02):
     """
-    Find complete (across all k-points) phononic bandgaps.
+    Find complete phononic bandgaps (across all k-points).
     A gap between band b and b+1 exists if max(band_b) < min(band_{b+1})
     with fractional gap > tol_frac.
     """
@@ -322,7 +287,7 @@ def find_bandgaps(freqs, tol_frac=0.02):
         f_top    = np.nanmax(freqs[:, b])
         f_bottom = np.nanmin(freqs[:, b+1])
         if f_bottom > f_top:
-            fc   = 0.5 * (f_top + f_bottom)
+            fc    = 0.5 * (f_top + f_bottom)
             gfrac = (f_bottom - f_top) / fc
             if gfrac > tol_frac:
                 gaps.append((f_top, f_bottom, gfrac))
@@ -330,7 +295,7 @@ def find_bandgaps(freqs, tol_frac=0.02):
 
 gaps = find_bandgaps(freqs_GHz)
 
-print('\nBandgap summary (diamond snowflake):')
+print('\nBandgap summary (diamond, triangular lattice of circular holes):')
 if gaps:
     for fl, fu, gf in gaps:
         fc = 0.5 * (fl + fu)
@@ -339,10 +304,11 @@ if gaps:
 else:
     print('  No complete bandgap found.')
     print('  Suggestions:')
-    print('    - Increase r/a (try 0.42-0.45) for wider gap')
-    print('    - Decrease w/a (try 0.10-0.12) for deeper gap')
-    print('    - Check eig_shift_GHz includes the gap region')
+    print('    - Increase r/a (try 0.38-0.45) for wider gap')
+    print('    - Check eig_shift_GHz covers the expected gap region')
     print('    - Increase n_modes if bands may be missing')
+    print('    - Note: circular holes may give only a partial gap;')
+    print('      upgrade to snowflake geometry for a complete gap')
 
 # =============================================================================
 # SAVE DATA
@@ -353,7 +319,7 @@ np.savez(data_path,
          freqs_GHz=freqs_GHz,
          k_path_radpm=k_path,
          k_dist=k_dist,
-         a=a, d=d, r=r, w=w,
+         a=a, d=d, r=r,
          tick_idx=tick_idx,
          tick_lbl=np.array(tick_lbl))
 print(f'\nData saved: {data_path}')
@@ -377,9 +343,9 @@ ax.set_xticks(tick_x)
 ax.set_xticklabels(tick_lbl, fontsize=11)
 ax.set_xlabel('Wavevector')
 ax.set_ylabel('Frequency (GHz)')
-ax.set_title(f'Snowflake phononic crystal -- diamond\n'
-             f'a={a*1e9:.0f}nm  d={d*1e9:.0f}nm  '
-             f'r={r*1e9:.0f}nm  w={w*1e9:.0f}nm', fontsize=10)
+ax.set_title(f'Triangular lattice, circular holes -- diamond\n'
+             f'a={a*1e9:.0f}nm  d={d*1e9:.0f}nm  r={r*1e9:.0f}nm'
+             f'  (r/a={r/a:.2f})', fontsize=10)
 ax.set_xlim([k_dist[0], k_dist[-1]])
 ax.set_ylim([0, None])
 ax.grid(alpha=0.3)
