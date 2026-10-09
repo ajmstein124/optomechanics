@@ -102,13 +102,21 @@ def run_remote_script(script_path: str):
         print(f'ERROR: script not found: {script_path}')
         sys.exit(1)
 
-    remote_script = REMOTE_DIR + '\\' + script_path.name
+    remote_script  = REMOTE_DIR + '\\' + script_path.name
+    local_configs  = Path(__file__).parent.parent / 'configs'
+    remote_configs = REMOTE_DIR + r'\configs'
 
-    print(f'[1/4] Creating remote directory...')
+    print(f'[1/4] Creating remote directories...')
     ssh(f'if not exist "{REMOTE_DIR}" mkdir "{REMOTE_DIR}"')
+    if local_configs.exists():
+        ssh(f'if not exist "{remote_configs}" mkdir "{remote_configs}"')
 
     print(f'[2/4] Copying {script_path.name} to Windows...')
     scp_to(script_path, remote_script)
+    if local_configs.exists():
+        for cfg_file in local_configs.glob('*.json'):
+            scp_to(cfg_file, remote_configs + '\\' + cfg_file.name)
+            print(f'       + configs/{cfg_file.name}')
 
     print(f'[3/4] Running script on Windows (this may take a long time)...')
     rc = ssh(f'cd "{REMOTE_DIR}" && {PYTHON_CMD} "{script_path.name}"')
@@ -116,7 +124,7 @@ def run_remote_script(script_path: str):
         print(f'WARNING: remote script exited with code {rc}')
 
     print(f'[4/4] Pulling results back...')
-    for ext in ('*.npz', '*.png', '*.mat'):
+    for ext in ('*.npz', '*.png', '*.mat', '*.csv'):
         scp_from(REMOTE_DIR + '\\' + ext, LOCAL_RESULTS)
     print(f'Results in: {LOCAL_RESULTS}')
 
