@@ -43,11 +43,11 @@ from pathlib import Path
 # SSH / REMOTE CONFIG  -- fill these in before first use
 # =============================================================================
 
-REMOTE_HOST = 'USERNAME@HOST'                               # e.g. 'alice@192.168.1.10'
-SSH_KEY     = os.path.expanduser('~/.ssh/id_ed25519')       # local private key path
-REMOTE_DIR  = r'C:\Users\USERNAME\Documents\optomechanics'  # fill in username
+REMOTE_HOST = 'jvadmin@171.64.85.12'
+SSH_KEY     = os.path.expanduser('~/.ssh/id_ed25519')
+REMOTE_DIR  = r'C:\Users\JVadmin\Documents\optomechanics'
 PYTHON_CMD  = 'py -3.12'
-MATLAB_CMD  = 'matlab'   # full path if not in PATH, e.g. r'"C:\Program Files\MATLAB\R2024b\bin\matlab.exe"'
+MATLAB_CMD  = r'"C:\Program Files\MATLAB\R2024b\bin\matlab.exe"'
 
 # =============================================================================
 
