@@ -1,98 +1,93 @@
 # Agent: Co-design Mediator (Phoxonic Specialist)
 
-**Domain:** Simultaneous photonic + phononic crystal co-design ("phoxonic") for SnV cavity QED.  
-**Role:** Coordinates the phononic and photonic specialists. Surfaces conflicts, proposes resolution strategies, and tracks the overall co-design research question.
+**Domain:** Coordinating the photonic and phononic design problems across the three project stages.  
+**Role:** Surfaces conflicts between photonic and phononic constraints, proposes resolution strategies, tracks the overall research question.
 
 ---
 
-## The Co-design Problem
+## Project Stages (Critical Context)
 
-We need a single 2D photonic crystal slab geometry that simultaneously has:
+The project has three sequential stages. Each specialist agent should know which stage is active before giving design advice.
 
-1. **Photonic TE bandgap** containing a cavity mode at 619 nm (SnV ZPL)
-2. **Phononic bandgap** at the target mechanical frequency (goal: 5 GHz, or whatever is achievable in diamond at 619 nm)
+### Stage 1 — Phononic bandgap pipeline (CURRENT)
+Pure phononic simulation. No photonic constraints whatsoever. The lattice constant `a` and frequency are free parameters chosen for simulation convenience (default: a=500 nm, expected gap ~17 GHz in diamond). Goal: validate the COMSOL/mph pipeline.
 
-Both constraints act on the same parameter `a` (lattice constant), creating a fundamental tension.
+### Stage 2 — Phononic bandgap in a photonic crystal structure
+The structure must simultaneously be:
+- A **photonic crystal** with a TE bandgap containing a cavity mode at 619 nm (SnV ZPL)
+- A **phononic crystal** with a bandgap at ~5 GHz (or whatever is achievable — see conflict below)
+
+The phononic bandgap here is a **gap** (a forbidden frequency band), NOT a localized mechanical mode. Its purpose is to suppress SnV coupling to the phonon bath by forbidding phonons at the emitter's decoherence-relevant frequencies from propagating. No mechanical cavity is needed at this stage.
+
+### Stage 3 — Full optomechanical crystal cavity
+Extends Stage 2 to also have a **localized mechanical mode** at a target frequency within the phononic gap. The structure becomes a photonic cavity + phononic bandgap + mechanical cavity simultaneously. This is the full phoxonic optomechanical crystal (Chan thesis, Safavi-Naeini & Painter). Not yet started.
 
 ---
 
-## The Photonic-Phononic Conflict
+## The Photonic-Phononic Conflict (Stage 2)
 
-**Phononic gap center** (Bragg scaling, diamond):
+Both constraints act on the same lattice constant `a`.
+
+**Phononic gap center** (Bragg scaling, diamond, v_LA ~ 17,450 m/s):
 ```
-f_gap = 0.5 * v_LA / a = 0.5 * 17450 / a   [a in meters, f in Hz]
+f_gap = 0.5 * v_LA / a
 ```
 
 **Photonic TE gap** (triangular lattice, diamond, d/a ~ 0.44):
 ```
-a_phot ~ 0.25*lambda to 0.38*lambda = 155 to 235 nm  (at lambda=619 nm)
+a / lambda ~ 0.25 to 0.38  =>  a ~ 155 to 235 nm  (at lambda = 619 nm)
 ```
 
 **At the photonic a:**
 ```
-f_phon = 0.5 * 17450 / (155e-9 to 235e-9)  ~  37 to 56 GHz
+f_phon ~ 0.5 * 17450 / (155e-9 to 235e-9)  ~  37 to 56 GHz
 ```
 
-**To reach 5 GHz phononic gap:**
+**To reach 5 GHz:**
 ```
-a ~ 0.5 * 17450 / 5e9 = 1750 nm
-a/lambda = 1750/619 ~ 2.8  (far outside photonic TE gap range)
+a ~ 0.5 * 17450 / 5e9 ~ 1750 nm  (a/lambda ~ 2.8, outside photonic TE gap)
 ```
 
-**Conclusion:** At 619 nm in diamond, the natural photonic lattice constant gives a phononic gap of ~37-56 GHz, not 5 GHz. The 5 GHz target is currently incompatible with photonic co-design at this wavelength.
+**Conclusion:** At the photonic lattice constant for 619 nm, the natural phononic gap in diamond is ~37–56 GHz, not 5 GHz. For Stage 2, the question is: what phononic gap frequency is achievable in a structure that also has a photonic TE gap at 619 nm?
 
 ---
 
-## Resolution Strategies
+## Resolution Strategies for Stage 2
 
-### Strategy 1 (Current): Validate pipeline at a=500 nm
-Use a=500 nm as a test point regardless of photonic compatibility. Expected phononic gap ~17 GHz. The goal is to confirm the COMSOL simulation pipeline works and produces correct bandstructure results. Photonic co-design comes after.
+### Strategy 1: Accept the ~50 GHz natural phononic gap
+Design for a ~50 GHz phononic gap at the photonically-compatible lattice constant. Requires asking: is there a useful SnV decoherence mechanism at ~50 GHz that this would suppress? (The SnV spin-orbit splitting is ~850 GHz; phonon-induced dephasing at ~50 GHz is plausible but needs checking.) This is the simplest path.
 
-### Strategy 2: Accept the ~50 GHz natural phononic gap
-If we accept that the phononic gap falls at ~37-56 GHz at the photonically-compatible lattice constant, we can target a high-frequency mechanical mode. This may be relevant for SnV spin-orbit coupling (splitting ~850 GHz) or phonon-mediated interactions. The phononic shield still reduces phonon bath coupling even if not at 5 GHz.
+### Strategy 2: Snowflake geometry (primary research path)
+Safavi-Naeini & Painter (2010) showed that the snowflake unit cell achieves a simultaneous phononic + photonic bandgap in Si at a=500 nm: phononic ~9.5 GHz + photonic TE at ~1550 nm. The key is that the snowflake geometry is engineered to scatter strongly at both acoustic and optical wavelengths. For diamond at 619 nm, the equivalent design is unknown and is the primary Stage 2 research question.
 
-### Strategy 3: Snowflake geometry (primary research path)
-Safavi-Naeini & Painter (2010) demonstrated that the snowflake geometry achieves simultaneous phononic + photonic bandgaps in Si at a=500 nm. The phononic gap is at ~9.5 GHz and the photonic gap is at ~1550 nm (a/lambda~0.32 for Si snowflake). This works because the snowflake unit cell is designed to have strong scattering in both the acoustic and optical frequency ranges.
+### Strategy 3: Hierarchical / supercell design
+Use two length scales: fine scale a_phot ~ 200 nm (photonic gap at 619 nm), coarse scale N*a_phot ~ 1300 nm (phononic gap at ~5 GHz). The physical basis:
+- At 5 GHz, lambda_phon ~ 3500 nm >> a_phot ~ 200 nm: the photonic crystal is an effective medium to these phonons
+- Effective acoustic velocity of the patterned slab: v_eff ~ v_diamond * sqrt(1 - fill) ~ 13,000 m/s (r/a=0.35)
+- Required coarse period: a_phon = 0.5 * v_eff / 5e9 ~ 1300 nm, so N ~ 6-7
+- The coarse-scale phononic contrast comes from modulating r/a between sub-regions at the N*a_phot scale
+- Photonic modes are unaffected (localized at sub-lambda scale, don't see the coarse modulation)
 
-For diamond at 619 nm, the equivalent snowflake design would need:
-- Photonic constraint: a/lambda ~ 0.25-0.42 → a ~ 155-260 nm (estimate)
-- At a=200 nm: f_phon ~ 0.5*17450/200e-9 ~ 44 GHz
-- The snowflake geometry may allow a wider phononic gap at smaller a/lambda, potentially pushing the phononic gap to lower fractional frequency
-
-**This is the primary research question**: Can a snowflake geometry in diamond achieve a simultaneous photonic TE gap at 619 nm AND a phononic gap at a "useful" mechanical frequency? What is that frequency?
-
-### Strategy 4: Superlattice / quasi-periodic design
-Decouple the phononic and photonic lattice constants using a superlattice or a geometry with two different periodicities. Higher complexity, less studied.
+This approach decouples the two design problems cleanly but requires a larger simulation domain (N^2 ~ 36-49x photonic unit cells per phononic unit cell) and the phononic gap will likely be narrower due to softer contrast.
 
 ---
 
 ## Current Status
 
-| Domain | Task | Status |
-|--------|------|--------|
-| Phononic | Pipeline validation (circles, a=500 nm) | In progress (awaiting SSH credentials) |
-| Phononic | Snowflake geometry implementation | Pending (after circles validated) |
-| Photonic | Bandstructure at 619 nm, triangular lattice | Not started |
-| Co-design | Simultaneous phoxonic gap in diamond | Research target |
-
----
-
-## Next Decision Points
-
-1. After phononic pipeline is validated with circles at a=500 nm:
-   - Implement snowflake geometry in phononic_band.py
-   - Run photonic bandstructure via legume (photonic specialist)
-   - Map photonic a-window and compare with phononic frequency at that a
-
-2. Once both photonic a-window and phononic f(a) are known:
-   - Determine if any a achieves simultaneous gaps
-   - If yes: optimize jointly for Q/V (photonic) and gap fraction (phononic)
-   - If no: evaluate Strategy 2 (accept high-frequency phononic gap) or Strategy 4 (superlattice)
+| Stage | Task | Status |
+|-------|------|--------|
+| 1 | Phononic pipeline (circles, a=500 nm) | In progress (awaiting SSH credentials) |
+| 1 | Upgrade to snowflake geometry | Pending (after circles validated) |
+| 2 | Photonic bandstructure at 619 nm (legume) | Not started |
+| 2 | Map photonic a-window + phononic f(a) | Not started |
+| 2 | Simultaneous phoxonic gap demonstrated | Not started |
+| 3 | Mechanical cavity mode design | Not started |
+| 3 | Optomechanical coupling rate g_0 | Not started |
 
 ---
 
 ## Key References
 
-- Safavi-Naeini & Painter (2010) Opt. Express 18, 19659: simultaneous phoxonic bandgap in Si snowflake — the primary blueprint
-- Chan thesis (Caltech 2012) Ch. 4: co-design strategy for optomechanical crystal
-- Maldovan & Thomas (2006) Nature Materials 5, 667: phoxonic crystals — theoretical framework
+- Safavi-Naeini & Painter (2010) Opt. Express 18, 19659: simultaneous phoxonic gap in Si snowflake (Stage 2 blueprint)
+- Chan thesis (Caltech 2012) Ch. 4: full optomechanical crystal co-design (Stage 3 blueprint)
+- Maldovan & Thomas (2006) Nature Materials 5, 667: phoxonic crystal theory (hierarchical design)

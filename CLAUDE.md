@@ -6,11 +6,11 @@ This is the top-level agent context file. All sub-agent files are registered her
 
 ## Project Overview
 
-**Project:** Co-designed photonic/phononic crystal cavities for SnV cavity QED  
+**Project:** Co-designed photonic/phononic crystal structures for SnV cavity QED  
 **Owner:** ajmstein  
 **Created:** 2026-10-08  
 
-Design and simulate co-designed photonic crystal cavity (PCC) / phononic crystal cavity structures in diamond thin films for cavity quantum electrodynamics with the tin vacancy (SnV) center. The goal is simultaneous photonic and phononic bandgap engineering ("phoxonic" design) to achieve high Purcell enhancement at the SnV zero-phonon line while mechanically isolating the emitter from the phonon bath.
+Build and simulate diamond photonic crystal structures for cavity QED with the tin vacancy (SnV) center. The project has three sequential stages with increasing complexity.
 
 **Physical system**
 - Emitter: Tin vacancy (SnV) center in diamond
@@ -20,28 +20,57 @@ Design and simulate co-designed photonic crystal cavity (PCC) / phononic crystal
   - Spin-orbit splitting: ~850 GHz
 - Host: Diamond thin film (free-standing slab)
   - Refractive index: n = 2.41 at 619 nm
-- Target: co-designed structure with simultaneous photonic + phononic bandgaps
 
-**Key figures of merit**
-- Purcell factor: F_P = (3/4pi^2) * (lambda/n)^3 * (Q/V)
-- Cooperativity: C = g^2 / (kappa * gamma)
-- Photonic: maximize Q/V at 619 nm
-- Phononic: bandgap spanning SnV-relevant mechanical frequencies
+---
+
+## Project Stages
+
+### Stage 1 — Phononic bandgap pipeline (CURRENT)
+**Goal:** Get COMSOL working. Simulate phononic band structure of a 2D diamond slab and confirm a bandgap exists.  
+**No photonic constraints.** Geometry, lattice constant, and frequency are free parameters chosen for simulation convenience.  
+**Success criterion:** COMSOL runs, band structure looks reasonable, bandgap detected and plotted.  
+**Current geometry:** Triangular lattice of circular holes, a=500 nm, d/a=0.44, r/a=0.35. Expected phononic gap ~17 GHz.
+
+### Stage 2 — Phononic bandgap in a photonic crystal structure
+**Goal:** Co-design a structure that is simultaneously:
+- A **photonic crystal cavity** at 619 nm (SnV ZPL), AND
+- A **phononic crystal** with a bandgap at a target frequency (~5 GHz goal)
+
+The phononic bandgap suppresses coupling of the SnV to the phonon bath — it is a **gap**, not a localized mechanical mode. The emitter sits in a region of phononic forbidden frequencies, reducing decoherence.  
+**This is where the photonic/phononic lattice constant conflict matters** (see co-design mediator).
+
+### Stage 3 — Full optomechanical crystal cavity
+**Goal:** Extend Stage 2 so the structure also has a **localized mechanical mode** at a target frequency within the phononic gap — forming a full optomechanical crystal.  
+**Adds:** mechanical cavity design (defect engineering), optomechanical coupling rate g_0, mechanical Q.  
+**This is the full phoxonic co-design problem** (photonic cavity + phononic bandgap + mechanical cavity mode, all in one structure).
+
+---
+
+## Key figures of merit (by stage)
+
+- Stage 1: fractional phononic gap width (f_bot - f_top) / f_center
+- Stage 2: phononic gap at target frequency + photonic Q/V at 619 nm
+- Stage 3: Purcell factor F_P = (3/4pi^2)(lambda/n)^3(Q/V); cooperativity C = g^2/(kappa*gamma); mechanical Q
 
 ---
 
 ## Current State
 
-- [x] Project initialized
-- [x] Physical model defined (SnV in diamond, target phoxonic co-design)
-- [x] Cavity geometry chosen: **2D slab photonic crystal cavity** (triangular lattice)
+**Stage 1 (active):**
 - [x] Phononic band structure scripts: `scripts/phononic_band.py` (single run) + `scripts/phononic_sweep.py` (parameter sweep)
 - [x] Remote execution: `scripts/remote_runner.py` (SSH to Windows COMSOL machine)
 - [x] Local Streamlit UI: `app.py` (parameter setup, unit cell preview, results visualization, Starting Point tab)
 - [ ] SSH credentials filled in (pending — user to provide)
 - [ ] First COMSOL run validated
+
+**Stage 2 (not started):**
 - [ ] Photonic bandgap simulation set up (legume or COMSOL)
-- [ ] Co-design optimization strategy defined
+- [ ] Phononic/photonic lattice constant conflict resolved (see co-design mediator)
+- [ ] Simultaneous bandgap demonstrated in a single structure
+
+**Stage 3 (not started):**
+- [ ] Mechanical cavity mode design
+- [ ] Optomechanical coupling rate computed
 
 ---
 
