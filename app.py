@@ -63,9 +63,21 @@ with st.sidebar:
                                      value=3.0, step=0.5)
 
     st.divider()
-    st.header('Material — Diamond')
-    st.markdown('E = 1050 GPa  \nν = 0.07  \nρ = 3500 kg/m³  \nv_LA ≈ 17 500 m/s')
-    f_est = 17500.0 / (a_nm * 1e-9) / 1e9
+    st.header('Material')
+    st.caption('Diamond ~1050 · Si ~130 · 4H-SiC ~400 GPa')
+    E_GPa = st.number_input('E  Young\'s modulus (GPa)', min_value=1.0,
+                             value=1050.0, step=10.0)
+    st.caption('0.0 – 0.50  ·  Diamond ~0.07 · Si ~0.28 · 4H-SiC ~0.21')
+    nu    = st.number_input('ν  Poisson\'s ratio', min_value=0.0, max_value=0.50,
+                             value=0.07, step=0.01)
+    st.caption('Diamond ~3500 · Si ~2329 · 4H-SiC ~3210 kg/m³')
+    rho   = st.number_input('ρ  Density (kg/m³)', min_value=1.0,
+                             value=3500.0, step=10.0)
+
+    E_Pa  = E_GPa * 1e9
+    v_LA  = np.sqrt(E_Pa * (1 - nu) / (rho * (1 + nu) * (1 - 2 * nu)))
+    f_est = v_LA / (a_nm * 1e-9) / 1e9
+    st.caption(f'v_LA ≈ {v_LA/1000:.1f} km/s')
     st.metric('Band center estimate', f'{f_est:.1f} GHz', help='v_LA / a')
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
@@ -224,12 +236,18 @@ with tab_bs:
     with st.expander('Run configuration'):
         st.markdown('Paste into the **PARAMETERS** block of `scripts/phononic_band.py`:')
         st.code(
+            f'# Geometry\n'
             f'a  = {a_nm}e-9    # lattice constant [m]\n'
             f'd  = {d_nm:.1f}e-9    # slab thickness [m]  (d/a = {da:.2f})\n'
             f'r  = {r_nm:.1f}e-9    # hole radius [m]     (r/a = {ra:.2f})\n\n'
+            f'# Simulation\n'
             f'n_seg         = {n_seg}\n'
             f'n_modes       = {n_modes}\n'
-            f'eig_shift_GHz = {eig_shift_GHz}',
+            f'eig_shift_GHz = {eig_shift_GHz}\n\n'
+            f'# Material\n'
+            f'E_d   = {E_Pa:.3e}   # Pa\n'
+            f'nu_d  = {nu}\n'
+            f'rho_d = {rho}',
             language='python',
         )
         st.code('python scripts/remote_runner.py scripts/phononic_band.py', language='bash')
@@ -307,6 +325,15 @@ with tab_sweep:
         eig_sw     = st.number_input('Eigenfreq shift (GHz)', min_value=0.0, max_value=30.0,
                                       value=float(eig_shift_GHz), step=0.5, key='eig_sw')
 
+        st.divider()
+        st.markdown('**Save path (Windows machine)**')
+        st.caption('Local drive only — avoid OneDrive/network paths')
+        save_path = st.text_input(
+            'Remote save directory',
+            value=r'C:\Users\USERNAME\Documents\optomechanics',
+            key='save_path_sw',
+        )
+
         n_combos = len(a_arr) * len(ra_arr) * len(da_arr)
         st.metric('Total combinations', n_combos)
         if n_combos > 100:
@@ -321,11 +348,16 @@ with tab_sweep:
                     'da':   [round(x, 4) for x in da_arr],
                 },
                 'simulation': {
-                    'n_seg':         n_seg_sw,
-                    'n_modes':       n_modes_sw,
-                    'eig_shift_GHz': eig_sw,
+                    'n_seg':         int(n_seg_sw),
+                    'n_modes':       int(n_modes_sw),
+                    'eig_shift_GHz': float(eig_sw),
                 },
-                'save_dir': r'C:\Users\USERNAME\Documents\optomechanics',
+                'material': {
+                    'E_GPa':    float(E_GPa),
+                    'nu':       float(nu),
+                    'rho_kgm3': float(rho),
+                },
+                'save_dir': save_path,
             }
             cfg_path = CONFIGS_DIR / 'sweep_config.json'
             with open(cfg_path, 'w') as f:

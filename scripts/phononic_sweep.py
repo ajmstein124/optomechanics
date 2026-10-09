@@ -53,8 +53,10 @@ n_modes       = sim.get('n_modes',      20)
 eig_shift_GHz = sim.get('eig_shift_GHz', 3.0)
 save_dir      = cfg.get('save_dir', script_dir)
 
-# Diamond material (isotropic approximation)
-E_d, nu_d, rho_d = 1050e9, 0.07, 3500.0
+mat   = cfg.get('material', {})
+E_d   = mat.get('E_GPa',    1050) * 1e9   # Pa
+nu_d  = mat.get('nu',       0.07)
+rho_d = mat.get('rho_kgm3', 3500.0)
 
 param_combos = list(itertools.product(a_nm_vals, da_vals, ra_vals))
 print(f'Sweep: {len(a_nm_vals)} a x {len(da_vals)} d/a x {len(ra_vals)} r/a = {len(param_combos)} combos')
