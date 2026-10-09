@@ -65,14 +65,29 @@ tag      = f'circles_a{int(a*1e9)}nm_d{int(d*1e9)}nm_r{int(r*1e9)}nm'
 # =============================================================================
 # K-PATH: Gamma -> X -> S -> Y -> Gamma  (rectangular BZ of hex supercell)
 #
-#   Rectangular cell: Lx = a,  Ly = a*sqrt(3)
-#   BZ boundaries:   kx_max = pi/a,  ky_max = pi/(a*sqrt(3))
+# The hexagonal lattice has a rhombic primitive cell, but we simulate a
+# rectangular 2-atom supercell (Lx=a, Ly=a*sqrt(3)) to allow orthogonal
+# Floquet BCs in COMSOL.  The reciprocal lattice of this supercell is also
+# rectangular, with BZ boundaries kx_max=pi/a, ky_max=pi/(a*sqrt(3)).
 #
-#   High symmetry points:
-#     Gamma = (0,       0              )
-#     X     = (pi/a,    0              )
-#     S     = (pi/a,    pi/(a*sqrt(3)) )
-#     Y     = (0,       pi/(a*sqrt(3)) )
+# The irreducible BZ (IBZ) boundary of the rectangular BZ is the path:
+#   Gamma -> X -> S -> Y -> Gamma
+#
+# This is the rectangular-supercell analog of the Gamma->X->M->Gamma path
+# used for a square lattice (COMSOL blog).  The S point here corresponds to
+# the M point of the hexagonal BZ.
+#
+# A bandgap is COMPLETE if it spans the gap for ALL k in the full IBZ (not
+# just the path boundary).  Sweeping the IBZ boundary is the standard check:
+# gaps found on the high-symmetry path are expected to be complete for
+# geometries with the full C6v lattice symmetry.  They should be verified
+# with a 2D k-space scan if the geometry breaks that symmetry.
+#
+# High-symmetry points:
+#   Gamma = (0,       0              )
+#   X     = (pi/a,    0              )
+#   S     = (pi/a,    pi/(a*sqrt(3)) )   <- M point of hex BZ
+#   Y     = (0,       pi/(a*sqrt(3)) )
 # =============================================================================
 
 kx_max = np.pi / a
@@ -204,8 +219,27 @@ mat.propertyGroup('def').set('poissonsratio', str(nu_d))
 # --- Physics: Solid Mechanics ------------------------------------------------
 solid = comp.physics().create('solid', 'SolidMechanics', 'geom1')
 
+# Floquet (Bloch) periodic boundary conditions.
+#
+# The condition on each pair of opposing faces is:
+#   u_dest = exp(-i * k_F . (r_dest - r_src)) * u_src
+#
+# where k_F = (kx, ky, 0) is the Bloch wavevector, r is the position vector,
+# and u is the displacement field.  This couples the degrees of freedom on
+# the source face to those on the destination face with the Bloch phase factor.
+#
+# Because the phase factor is complex for k != 0, COMSOL automatically invokes
+# a complex eigensolver.  The eigenvalues (omega^2) remain real for the undamped
+# system; only the mode shapes are complex.  getData() still returns real
+# frequencies -- this is expected and correct.
+#
+# At k = Gamma (kx=ky=0) the factor is 1 and the matrices are real.  The
+# zero-frequency rigid-body modes appear there, hence eig_shift_GHz > 0.
+#
+# References: COMSOL blog "Modeling Phononic Band Gap Materials and Structures";
+#             Chan thesis App. F.
+
 def add_floquet_bc(solid_node, name, src_sel, dst_sel):
-    """Floquet periodic BC pairing src_sel -> dst_sel with k-vector [kx, ky, 0]."""
     pc = solid_node.create(name, 'PeriodicCondition', 2)
     pc.label(f'Floquet {name}')
     pc.set('PeriodicType', 'Floquet')
@@ -216,7 +250,7 @@ def add_floquet_bc(solid_node, name, src_sel, dst_sel):
 
 add_floquet_bc(solid, 'pc_x', 'comp1_sel_x0', 'comp1_sel_xa')
 add_floquet_bc(solid, 'pc_y', 'comp1_sel_y0', 'comp1_sel_ya')
-# Top and bottom faces: free boundary (COMSOL Solid Mechanics default)
+# Top and bottom faces: free (traction-free) boundary -- COMSOL Solid Mechanics default.
 
 # --- Mesh --------------------------------------------------------------------
 mesh = comp.mesh().create('mesh1')
@@ -225,13 +259,21 @@ sz = mesh.create('sz1', 'Size')
 sz.set('hauto', 5)   # 1=finest .. 9=coarsest; 5=normal, 4=fine
 
 # --- Study: Eigenfrequency ---------------------------------------------------
+# The shift-invert Lanczos solver finds the n_modes eigenvalues (omega^2)
+# nearest to omega_shift^2.  Setting shift > 0 serves two purposes:
+#   1. Skips the zero-frequency rigid-body modes at k=Gamma.
+#   2. Centers the search window on the frequency range of interest.
+# Rule: set shift to 30-70% of the expected gap center frequency.
+# If getData() returns unexpected or missing modes, adjust eig_shift_GHz.
 std = m.study().create('std1')
 eig = std.create('eig1', 'Eigenfrequency')
 eig.set('neigsactive', 'on')
 eig.set('neigs', str(n_modes))
 eig.set('shift', f'{eig_shift_GHz}[GHz]')
 
-# Global evaluation to extract eigenfrequencies after each solve
+# Global evaluation: extract all eigenfrequencies in GHz after each k-solve.
+# getData() returns a list-of-lists: outer index = eigenmode, inner = expression.
+# Eigenfrequencies are real even though the Floquet matrices are complex.
 ev = m.result().numerical().create('ev1', 'EvalGlobal')
 ev.set('data', 'dset1')
 ev.setIndex('expr',  'freq', 0)

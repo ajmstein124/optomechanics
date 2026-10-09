@@ -67,6 +67,10 @@ print(f'Solver: n_seg={n_seg}, n_modes={n_modes}, eig_shift={eig_shift_GHz} GHz'
 # =============================================================================
 
 def make_k_path(a, n_seg):
+    # IBZ boundary of the rectangular 2-atom supercell BZ (analog of
+    # Gamma->X->M->Gamma for a square lattice, per COMSOL blog).
+    # S = M point of the hexagonal BZ folded into the rectangular supercell.
+    # A complete phononic bandgap must span this entire path.
     kx_max = np.pi / a
     ky_max = np.pi / (a * np.sqrt(3))
     kG = np.array([0, 0])
@@ -177,6 +181,14 @@ mat.propertyGroup('def').set('youngsmodulus', str(E_d))
 mat.propertyGroup('def').set('poissonsratio', str(nu_d))
 
 solid = comp.physics().create('solid', 'SolidMechanics', 'geom1')
+
+# Floquet (Bloch) BCs: u_dest = exp(-i * k_F . (r_dest - r_src)) * u_src
+# k_F = (kx, ky, 0).  COMSOL uses a complex eigensolver for k != 0 because
+# the phase factor is complex; eigenvalues (omega^2) remain real.
+# At k=Gamma (kx=ky=0): real matrices, zero-frequency rigid-body modes appear
+# -- hence eig_shift > 0.  Top/bottom faces: free (traction-free, default).
+# Ref: COMSOL blog "Modeling Phononic Band Gap Materials and Structures";
+#      Chan thesis App. F.
 for bc_name, src, dst in [('pc_x', 'comp1_sel_x0', 'comp1_sel_xa'),
                            ('pc_y', 'comp1_sel_y0', 'comp1_sel_ya')]:
     pc = solid.create(bc_name, 'PeriodicCondition', 2)
@@ -191,6 +203,9 @@ mesh.create('ftet1', 'FreeTet')
 sz = mesh.create('sz1', 'Size')
 sz.set('hauto', 5)
 
+# Shift-invert Lanczos: finds n_modes eigenvalues nearest to eig_shift^2.
+# Set shift to 30-70% of expected gap center to skip DC modes and center on
+# the frequency range of interest.
 std = m.study().create('std1')
 eig = std.create('eig1', 'Eigenfrequency')
 eig.set('neigsactive', 'on')
