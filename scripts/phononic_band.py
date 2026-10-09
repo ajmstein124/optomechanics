@@ -58,8 +58,8 @@ n_seg         = 15    # k-points per BZ segment (total = 4*n_seg + 1)
 n_modes       = 20    # eigenfrequencies at each k-point
 eig_shift_GHz = 3.0   # eigenfrequency search center [GHz]; raise if low modes missed
 
-# Output (must be a local Windows drive path)
-save_dir = r'C:\Users\hopel\Documents\Abby\optomechanics'
+# Output (must be a local Windows drive path -- fill in username to match remote_runner.py)
+save_dir = r'C:\Users\USERNAME\Documents\optomechanics'
 tag      = f'circles_a{int(a*1e9)}nm_d{int(d*1e9)}nm_r{int(r*1e9)}nm'
 
 # =============================================================================
