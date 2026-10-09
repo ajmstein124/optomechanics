@@ -3,6 +3,7 @@ remote_runner.py
 
 SSH runner for executing Python or MATLAB scripts on the Windows COMSOL machine.
 Copies the script to the remote Windows drive, runs it, copies results back.
+Results are also pulled every POLL_INTERVAL seconds while the job runs.
 
 Usage
 -----
@@ -30,13 +31,16 @@ Setup checklist (one-time)
 5. Run the check:
        python scripts/remote_runner.py --check
 
-Results (.mat, .jpg, .csv, .npz, .png) are pulled to ./results/ after each run.
+Results (.mat, .jpg, .csv, .npz, .png) are pulled to ./results/ after each run,
+and also every POLL_INTERVAL seconds while the job is running.
 """
 
 import subprocess
 import sys
 import os
 import argparse
+import threading
+import time
 from pathlib import Path
 
 # =============================================================================
@@ -48,6 +52,9 @@ SSH_KEY     = os.path.expanduser('~/.ssh/id_ed25519')
 REMOTE_DIR  = r'C:\Users\JVadmin\Documents\optomechanics'
 PYTHON_CMD  = 'py -3.12'
 MATLAB_CMD  = r'"C:\Program Files\MATLAB\R2024b\bin\matlab.exe"'
+
+# How often (seconds) to pull intermediate results while a job is running.
+POLL_INTERVAL = 90
 
 # =============================================================================
 
@@ -77,7 +84,28 @@ def scp_from(remote_glob, local_dir):
            f'{REMOTE_HOST}:{remote_glob}', str(local_dir)]
     result = subprocess.run(cmd, capture_output=True)
     if result.returncode != 0:
-        print(f'  scp pull note (may be no matching files): {result.stderr.decode().strip()}')
+        stderr = result.stderr.decode().strip()
+        if stderr:
+            print(f'  scp pull note (may be no matching files): {stderr}')
+
+
+def _pull_results():
+    """Pull all result files from the remote machine."""
+    results_subdirs = [REMOTE_DIR + r'\simu_data']
+    for subdir in results_subdirs:
+        scp_from(subdir + r'\*\*.mat', LOCAL_RESULTS)
+        scp_from(subdir + r'\*\*.jpg', LOCAL_RESULTS)
+    for ext_glob in RESULT_EXTS:
+        scp_from(REMOTE_DIR + '\\' + ext_glob, LOCAL_RESULTS)
+
+
+def _poll_loop(stop_event: threading.Event):
+    """Background thread: pull results every POLL_INTERVAL seconds."""
+    while not stop_event.wait(POLL_INTERVAL):
+        ts = time.strftime('%H:%M:%S')
+        print(f'\n  [{ts}] pulling intermediate results...')
+        _pull_results()
+        print(f'  [{ts}] pull done. Results in: {LOCAL_RESULTS}')
 
 
 def run_remote_script(script_path: str):
@@ -95,28 +123,33 @@ def run_remote_script(script_path: str):
     print(f'[2/4] Copying {script_path.name}...')
     scp_to(script_path, remote_script)
 
-    print(f'[3/4] Running on Windows...')
+    print(f'[3/4] Running on Windows... (results polled every {POLL_INTERVAL}s)')
     if ext == '.m':
-        # Run MATLAB in batch mode from REMOTE_DIR so mphload finds the .mph file.
-        # -batch runs the script headlessly and exits; stdout/stderr go to the SSH stream.
         script_name_no_ext = script_path.stem
         run_cmd = (f'cd /d "{REMOTE_DIR}" && '
                    f'{MATLAB_CMD} -batch "run(\'{script_name_no_ext}.m\')"')
     else:
         run_cmd = f'cd /d "{REMOTE_DIR}" && {PYTHON_CMD} "{script_path.name}"'
 
-    rc = ssh(run_cmd)
+    # Start SSH as a non-blocking process so the poll thread can run alongside.
+    ssh_proc = subprocess.Popen(
+        ['ssh', '-i', SSH_KEY, '-o', 'StrictHostKeyChecking=no', REMOTE_HOST, run_cmd]
+    )
+
+    stop_event = threading.Event()
+    poll_thread = threading.Thread(target=_poll_loop, args=(stop_event,), daemon=True)
+    poll_thread.start()
+
+    rc = ssh_proc.wait()
+
+    stop_event.set()
+    poll_thread.join()
+
     if rc != 0:
         print(f'WARNING: remote script exited with code {rc}')
 
-    print(f'[4/4] Pulling results...')
-    results_subdirs = [REMOTE_DIR + r'\simu_data']   # MATLAB scripts save here
-    for subdir in results_subdirs:
-        # Pull recursively by pulling from subdirectories matching simu_data\*
-        scp_from(subdir + r'\*\*.mat', LOCAL_RESULTS)
-        scp_from(subdir + r'\*\*.jpg', LOCAL_RESULTS)
-    for ext_glob in RESULT_EXTS:
-        scp_from(REMOTE_DIR + '\\' + ext_glob, LOCAL_RESULTS)
+    print(f'[4/4] Pulling final results...')
+    _pull_results()
     print(f'Results in: {LOCAL_RESULTS}')
 
 
@@ -154,7 +187,6 @@ def check_remote():
         return
 
     print('Checking COMSOL LiveLink...')
-    # Quick test: start a COMSOL server via mphstart (LiveLink function)
     test_script = 'mphstart; disp(\'LiveLink OK\'); exit'
     out, err, rc = ssh(f'{MATLAB_CMD} -batch "{test_script}"', capture=True)
     if rc == 0 and 'LiveLink OK' in out:

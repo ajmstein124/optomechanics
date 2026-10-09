@@ -69,10 +69,13 @@ for ii = 1:length(ks)
     model.sol('sol1').runAll;
     freqs(ii, end/2+1:end) = mphglobal(model, 'solid.freq', 'Dataset', 'dset1');
 
+    % Save after each k-point so results are available for intermediate pulls
+    fname_partial = [save_folder sprintf('Si_Mech_bands_nominal_ii_%d.mat', ii)];
+    save(fname_partial, 'freqs', 'ks', 'a', 'd', 'w', 't', 'f0', 'N_ks');
     toc
 end
 
-%% Save
+%% Save final combined result
 fname = [save_folder 'Si_Mech_bands_nominal.mat'];
 save(fname, 'freqs', 'ks', 'a', 'd', 'w', 't', 'f0', 'N_ks');
 disp(['Saved: ' fname]);
