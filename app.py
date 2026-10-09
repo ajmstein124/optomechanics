@@ -35,10 +35,15 @@ st.title('Phononic Crystal — Diamond Slab')
 
 with st.sidebar:
     st.header('Geometry')
-    a_nm = st.number_input('a  Lattice constant (nm)', 100, 3000, 500, step=10)
-    da   = st.slider('d/a  Slab thickness',  0.20, 0.60, 0.44, 0.01)
-    ra   = st.slider('r/a  Hole radius',     0.10, 0.48, 0.35, 0.01,
-                     help='Holes touch at r/a = 0.5; keep ≤ 0.48')
+    st.caption('100 – 3000 nm')
+    a_nm = st.number_input('a  Lattice constant (nm)', min_value=100, max_value=3000,
+                            value=500, step=10)
+    st.caption('0.20 – 0.60')
+    da   = st.number_input('d/a  Slab thickness', min_value=0.20, max_value=0.60,
+                            value=0.44, step=0.01)
+    st.caption('0.10 – 0.48  (holes touch at r/a = 0.50)')
+    ra   = st.number_input('r/a  Hole radius', min_value=0.10, max_value=0.48,
+                            value=0.35, step=0.01)
 
     d_nm     = da * a_nm
     r_nm     = ra * a_nm
@@ -47,10 +52,15 @@ with st.sidebar:
 
     st.divider()
     st.header('Simulation')
-    n_seg         = st.slider('k-points per segment',   5, 40, 15)
-    n_modes       = st.slider('Modes per k-point',      5, 40, 20)
-    eig_shift_GHz = st.slider('Eigenfreq shift (GHz)', 0.0, 30.0, 3.0, 0.5,
-                              help='Eigenfrequency solver search center')
+    st.caption('5 – 40')
+    n_seg         = st.number_input('k-points per segment', min_value=5, max_value=40,
+                                     value=15, step=1)
+    st.caption('5 – 40')
+    n_modes       = st.number_input('Modes per k-point', min_value=5, max_value=40,
+                                     value=20, step=1)
+    st.caption('0 – 30 GHz')
+    eig_shift_GHz = st.number_input('Eigenfreq shift (GHz)', min_value=0.0, max_value=30.0,
+                                     value=3.0, step=0.5)
 
     st.divider()
     st.header('Material — Diamond')
@@ -239,10 +249,15 @@ with tab_sweep:
         # Lattice constant a
         sweep_a = st.checkbox('Sweep a?', value=False)
         if sweep_a:
-            a_lo  = st.number_input('a min (nm)', 100, 2000, 300, 50, key='a_lo')
-            a_hi  = st.number_input('a max (nm)', 100, 3000, 1000, 50, key='a_hi')
-            a_n   = st.slider('a  points', 2, 15, 4, key='a_n')
-            a_arr = np.linspace(a_lo, a_hi, a_n).tolist()
+            st.caption('100 – 3000 nm')
+            a_lo  = st.number_input('a min (nm)', min_value=100, max_value=3000,
+                                     value=300, step=50, key='a_lo')
+            a_hi  = st.number_input('a max (nm)', min_value=100, max_value=3000,
+                                     value=1000, step=50, key='a_hi')
+            st.caption('2 – 15')
+            a_n   = st.number_input('a  points', min_value=2, max_value=15,
+                                     value=4, step=1, key='a_n')
+            a_arr = np.linspace(a_lo, a_hi, int(a_n)).tolist()
         else:
             a_arr = [float(a_nm)]
 
@@ -251,10 +266,15 @@ with tab_sweep:
         # Hole radius r/a
         sweep_ra = st.checkbox('Sweep r/a?', value=True)
         if sweep_ra:
-            ra_lo = st.slider('r/a  min', 0.10, 0.45, 0.25, 0.01, key='ra_lo')
-            ra_hi = st.slider('r/a  max', 0.15, 0.48, 0.46, 0.01, key='ra_hi')
-            ra_n  = st.slider('r/a  points', 2, 25, 10, key='ra_n')
-            ra_arr = np.linspace(ra_lo, ra_hi, ra_n).tolist()
+            st.caption('0.10 – 0.48')
+            ra_lo = st.number_input('r/a  min', min_value=0.10, max_value=0.48,
+                                     value=0.25, step=0.01, key='ra_lo')
+            ra_hi = st.number_input('r/a  max', min_value=0.10, max_value=0.48,
+                                     value=0.46, step=0.01, key='ra_hi')
+            st.caption('2 – 25')
+            ra_n  = st.number_input('r/a  points', min_value=2, max_value=25,
+                                     value=10, step=1, key='ra_n')
+            ra_arr = np.linspace(ra_lo, ra_hi, int(ra_n)).tolist()
         else:
             ra_arr = [float(ra)]
 
@@ -263,20 +283,29 @@ with tab_sweep:
         # Slab thickness d/a
         sweep_da = st.checkbox('Sweep d/a?', value=False)
         if sweep_da:
-            da_lo = st.slider('d/a  min', 0.20, 0.55, 0.36, 0.02, key='da_lo')
-            da_hi = st.slider('d/a  max', 0.25, 0.60, 0.52, 0.02, key='da_hi')
-            da_n  = st.slider('d/a  points', 2, 10, 4, key='da_n')
-            da_arr = np.linspace(da_lo, da_hi, da_n).tolist()
+            st.caption('0.20 – 0.60')
+            da_lo = st.number_input('d/a  min', min_value=0.20, max_value=0.60,
+                                     value=0.36, step=0.02, key='da_lo')
+            da_hi = st.number_input('d/a  max', min_value=0.20, max_value=0.60,
+                                     value=0.52, step=0.02, key='da_hi')
+            st.caption('2 – 10')
+            da_n  = st.number_input('d/a  points', min_value=2, max_value=10,
+                                     value=4, step=1, key='da_n')
+            da_arr = np.linspace(da_lo, da_hi, int(da_n)).tolist()
         else:
             da_arr = [float(da)]
 
         st.divider()
         st.markdown('**Solver settings (sweep)**')
-        n_seg_sw  = st.slider('k-points per segment', 3, 20, 8, key='n_seg_sw',
-                              help='Coarser k-path is fine for parameter search')
-        n_modes_sw = st.slider('Modes per k-point', 5, 30, 20, key='n_modes_sw')
-        eig_sw     = st.slider('Eigenfreq shift (GHz)', 0.0, 30.0, eig_shift_GHz,
-                               0.5, key='eig_sw')
+        st.caption('3 – 20  (coarser k-path is fine for parameter search)')
+        n_seg_sw   = st.number_input('k-points per segment', min_value=3, max_value=20,
+                                      value=8, step=1, key='n_seg_sw')
+        st.caption('5 – 30')
+        n_modes_sw = st.number_input('Modes per k-point', min_value=5, max_value=30,
+                                      value=20, step=1, key='n_modes_sw')
+        st.caption('0 – 30 GHz')
+        eig_sw     = st.number_input('Eigenfreq shift (GHz)', min_value=0.0, max_value=30.0,
+                                      value=float(eig_shift_GHz), step=0.5, key='eig_sw')
 
         n_combos = len(a_arr) * len(ra_arr) * len(da_arr)
         st.metric('Total combinations', n_combos)
