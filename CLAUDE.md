@@ -33,10 +33,10 @@ Design and simulate co-designed photonic crystal cavity (PCC) / phononic crystal
 ## Current State
 
 - [x] Project initialized
-- [ ] Physical model defined
-- [ ] Cavity geometry chosen (nanobeam vs. 2D slab vs. heterostructure)
-- [ ] Photonic bandgap simulation set up
-- [ ] Phononic bandgap simulation set up
+- [x] Physical model defined (SnV in diamond, target phoxonic co-design)
+- [x] Cavity geometry chosen: **2D slab photonic crystal cavity** (not 1D nanobeam)
+- [ ] Photonic bandgap simulation set up (legume or COMSOL)
+- [x] Phononic bandgap simulation set up (scripts/phononic_band.py)
 - [ ] Co-design optimization strategy defined
 - [ ] Analysis pipeline set up
 
@@ -46,13 +46,20 @@ Design and simulate co-designed photonic crystal cavity (PCC) / phononic crystal
 
 ```
 optomechanics/
-├── CLAUDE.md               ← this file (top-level driver)
-├── agents/                 ← sub-agent context files (one per domain)
-├── skills/                 ← reusable skill/tool definitions
-├── data/                   ← simulation outputs (gitignored)
-├── scripts/                ← simulation and analysis scripts
-└── notebooks/              ← exploratory notebooks
+├── CLAUDE.md                       ← this file (top-level driver)
+├── agents/                         ← sub-agent context files (one per domain)
+├── skills/                         ← reusable skill/tool definitions
+├── data/                           ← simulation outputs (gitignored)
+├── results/                        ← pulled back from Windows (gitignored)
+├── scripts/
+│   ├── phononic_band.py            ← COMSOL phononic band structure (cross unit cell)
+│   └── remote_runner.py            ← SSH runner: copy + execute on Windows COMSOL machine
+└── notebooks/
 ```
+
+**Execution model**: scripts run on Windows (`jvlab@100.68.160.53`) via SSH.
+Trigger with: `python scripts/remote_runner.py scripts/phononic_band.py`
+Results saved to `C:\Users\hopel\Documents\Abby\optomechanics\` and pulled back to `results/`.
 
 ---
 
@@ -96,10 +103,20 @@ tau_bulk        = 4.5e-9     # bulk excited-state lifetime [s]
 
 ---
 
-## Design Decisions Log
+## Background Reading
 
-_[Log non-obvious choices, constraints, and context that won't be obvious from the code]_
+- **Jasper Chan PhD thesis** (Caltech 2012, Painter group): Ground-state cooling of a 3.7 GHz mechanical mode in a Si nanobeam optomechanical crystal. Key reference for:
+  - Phononic Bloch state theory (Ch. 3.1.4)
+  - Cross unit cell phononic shield design (Fig 3.9): params ca, ct, ch, t
+  - COMSOL Floquet periodic BC setup for mechanical band structure (App. F)
+  - Cavity design via smooth defect modulation (well function)
+  - Optomechanical coupling rate (moving boundary + photoelastic effect)
+
+## Design Decisions Log
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | 2026-10-08 | Project created | Starting point for SnV phoxonic cavity design |
+| 2026-10-08 | 2D slab PCC geometry (not 1D nanobeam) | User decision: 2D cavities |
+| 2026-10-08 | First phononic script uses cross unit cell | Best-studied geometry for phononic shields; starting point before co-designed hole geometry |
+| 2026-10-08 | Diamond isotropic elasticity in first script | Simpler; can upgrade to cubic (c11=1076, c12=125, c44=578 GPa) once geometry is validated |
