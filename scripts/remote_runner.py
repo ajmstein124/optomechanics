@@ -50,7 +50,7 @@ from pathlib import Path
 REMOTE_HOST = 'jvadmin@100.92.85.99'
 SSH_KEY     = os.path.expanduser('~/.ssh/id_ed25519')
 REMOTE_DIR  = r'C:\Users\JVadmin\Documents\optomechanics'
-PYTHON_CMD  = 'py -3.12'
+PYTHON_CMD  = 'py -3.12 -u'   # -u: unbuffered so output streams live over SSH
 MATLAB_CMD  = r'"C:\Program Files\MATLAB\R2024b\bin\matlab.exe"'
 
 # How often (seconds) to pull intermediate results while a job is running.
@@ -122,6 +122,11 @@ def run_remote_script(script_path: str):
 
     print(f'[2/4] Copying {script_path.name}...')
     scp_to(script_path, remote_script)
+    # Also copy shared utility module for Python scripts that import it
+    if ext == '.py':
+        utils = Path(__file__).parent / 'comsol_utils.py'
+        if utils.exists():
+            scp_to(utils, REMOTE_DIR + '\\comsol_utils.py')
 
     print(f'[3/4] Running on Windows... (results polled every {POLL_INTERVAL}s)')
     if ext == '.m':
