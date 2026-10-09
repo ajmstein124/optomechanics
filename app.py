@@ -82,7 +82,7 @@ with st.sidebar:
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 
-tab_bs, tab_sweep = st.tabs(['Band Structure', 'Parameter Sweep'])
+tab_bs, tab_sweep, tab_est = st.tabs(['Band Structure', 'Parameter Sweep', 'Starting Point'])
 
 # ════════════════════════════════════════════════════════════════════════════════
 # TAB 1 — BAND STRUCTURE
@@ -488,3 +488,179 @@ with tab_sweep:
                                                'gap1_lo_GHz': 'f_lo (GHz)',
                                                'gap1_hi_GHz': 'f_hi (GHz)'}))
                     st.dataframe(styled, use_container_width=True)
+
+# ════════════════════════════════════════════════════════════════════════════════
+# TAB 3 — STARTING POINT
+# ════════════════════════════════════════════════════════════════════════════════
+
+with tab_est:
+    import pandas as pd
+
+    col_in, col_out = st.columns([1, 2])
+
+    # ── Inputs ────────────────────────────────────────────────────────────────
+
+    with col_in:
+        st.subheader('Target frequency')
+        st.caption('Desired phononic bandgap center (GHz)')
+        f_target = st.number_input('f_target (GHz)', min_value=0.1, max_value=1000.0,
+                                    value=5.0, step=0.5, key='f_target_est')
+
+        st.caption('Emitter wavelength for photonic check — SnV: 619 nm')
+        lambda_nm = st.number_input('Emitter wavelength (nm)', min_value=100.0,
+                                     max_value=3000.0, value=619.0, step=1.0,
+                                     key='lambda_est')
+
+        st.divider()
+        st.subheader('Slab thickness d')
+        sweep_d_est = st.checkbox('Sweep d?', value=False, key='sweep_d_est')
+        if sweep_d_est:
+            st.caption('50 – 500 nm  (diamond membranes typically 100–300 nm)')
+            d_lo_est = st.number_input('d min (nm)', min_value=50.0, max_value=500.0,
+                                        value=150.0, step=10.0, key='d_lo_est')
+            d_hi_est = st.number_input('d max (nm)', min_value=50.0, max_value=500.0,
+                                        value=300.0, step=10.0, key='d_hi_est')
+            st.caption('2 – 10')
+            d_n_est  = st.number_input('d points', min_value=2, max_value=10,
+                                        value=4, step=1, key='d_n_est')
+            d_arr_est = np.linspace(d_lo_est, d_hi_est, int(d_n_est)).tolist()
+        else:
+            st.caption('50 – 500 nm  (diamond membranes typically 100–300 nm)')
+            d_fixed_est = st.number_input('d (nm)', min_value=50.0, max_value=500.0,
+                                           value=200.0, step=10.0, key='d_fixed_est')
+            d_arr_est = [float(d_fixed_est)]
+
+    # ── Outputs ───────────────────────────────────────────────────────────────
+
+    with col_out:
+
+        # Acoustic velocities
+        v_LA = np.sqrt(E_Pa * (1 - nu) / (rho * (1 + nu) * (1 - 2 * nu)))
+        v_TA = np.sqrt(E_Pa / (2 * rho * (1 + nu)))
+
+        # Estimated lattice constant.
+        # Calibration: Safavi-Naeini & Painter Si snowflake a=500nm, v_LA≈9670 m/s,
+        # f_gap≈9.5 GHz → α = f*a/v_LA ≈ 0.49.  Use α=0.5.
+        # For circular holes the gap opens at a similar frequency but this is ±~30%.
+        alpha = 0.5
+        a_est_nm = alpha * v_LA / (f_target * 1e9) * 1e9
+
+        # Natural frequency at current sidebar a (quick sanity metric)
+        f_natural = alpha * v_LA / (a_nm * 1e-9) / 1e9
+
+        # Photonic TE bandgap range for triangular lattice of holes, n≈2.4
+        # Rough estimate: a/λ ≈ 0.25–0.38 (depends on r/a and d/a; needs full photonic sim)
+        phot_lo, phot_hi = 0.25, 0.38
+        phot_a_lo_nm = phot_lo * lambda_nm
+        phot_a_hi_nm = phot_hi * lambda_nm
+        phot_f_hi = alpha * v_LA / (phot_a_lo_nm * 1e-9) / 1e9
+        phot_f_lo = alpha * v_LA / (phot_a_hi_nm * 1e-9) / 1e9
+
+        # ── Top metrics ───────────────────────────────────────────────────────
+
+        m1, m2, m3, m4 = st.columns(4)
+        with m1:
+            st.metric('v_LA', f'{v_LA/1000:.1f} km/s')
+        with m2:
+            st.metric('v_TA', f'{v_TA/1000:.1f} km/s')
+        with m3:
+            st.metric('Estimated a', f'{a_est_nm:.0f} nm',
+                      help='f ≈ 0.5 × v_LA / a  (±~30%; run COMSOL for the real number)')
+        with m4:
+            st.metric('Natural f at sidebar a', f'{f_natural:.1f} GHz',
+                      help=f'Expected gap if a stays at {a_nm} nm')
+
+        # ── Photonic compatibility check ───────────────────────────────────────
+
+        a_over_lam = a_est_nm / lambda_nm
+        in_phot_range = phot_a_lo_nm <= a_est_nm <= phot_a_hi_nm
+
+        if in_phot_range:
+            st.success(
+                f'a/λ = {a_over_lam:.2f} — estimated a falls in the photonic TE bandgap '
+                f'range (a/λ ≈ {phot_lo}–{phot_hi}) for {lambda_nm:.0f} nm. '
+                f'Simultaneous photonic + phononic gap may be feasible.'
+            )
+        elif a_est_nm > phot_a_hi_nm:
+            st.warning(
+                f'a/λ = {a_over_lam:.2f} — too large for a photonic gap at {lambda_nm:.0f} nm '
+                f'(need a/λ ≈ {phot_lo}–{phot_hi}, i.e. a ≈ {phot_a_lo_nm:.0f}–{phot_a_hi_nm:.0f} nm).'
+            )
+            st.info(
+                f'**Photonically compatible phononic range: {phot_f_lo:.0f}–{phot_f_hi:.0f} GHz** '
+                f'(for a ≈ {phot_a_hi_nm:.0f}–{phot_a_lo_nm:.0f} nm at {lambda_nm:.0f} nm).  \n'
+                f'At {f_target:.0f} GHz you would need a ≈ {a_est_nm:.0f} nm, which puts the '
+                f'photonic bandgap far from {lambda_nm:.0f} nm.  \n'
+                f'**Recommended first test:** use a = {a_nm} nm (current sidebar value) — '
+                f'expected gap around {f_natural:.0f} GHz. This exercises the full COMSOL '
+                f'pipeline cheaply; rescale a once the gap is confirmed.'
+            )
+        else:
+            st.warning(
+                f'a/λ = {a_over_lam:.2f} — a is smaller than typical for a photonic gap at '
+                f'{lambda_nm:.0f} nm (need a/λ ≈ {phot_lo}–{phot_hi}).'
+            )
+
+        # ── Parameter table ───────────────────────────────────────────────────
+
+        rows = []
+        for d_val in d_arr_est:
+            rows.append({
+                'd (nm)':          round(d_val),
+                'a (nm)':          round(a_est_nm),
+                'd/a':             round(d_val / a_est_nm, 3),
+                'f_target (GHz)':  round(f_target, 1),
+                'r/a to sweep':    '0.25 – 0.45',
+            })
+        st.markdown('**Suggested starting parameters:**')
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+        # ── Scaling plot ──────────────────────────────────────────────────────
+
+        a_plot_max = max(3000.0, a_est_nm * 1.5)
+        a_plot = np.linspace(50, a_plot_max, 500)
+        f_plot = alpha * v_LA / (a_plot * 1e-9) / 1e9
+
+        fig_est, ax_est = plt.subplots(figsize=(6.5, 3.5))
+        ax_est.plot(a_plot, f_plot, color='steelblue', lw=2,
+                    label=f'f ≈ 0.5·v_LA/a  (v_LA={v_LA/1000:.1f} km/s)')
+        ax_est.axhline(f_target, color='tomato', lw=1.5, ls='--',
+                       label=f'target: {f_target:.1f} GHz')
+        if a_est_nm <= a_plot_max:
+            ax_est.axvline(a_est_nm, color='tomato', lw=1.0, ls=':')
+            ax_est.plot(a_est_nm, f_target, 'o', color='tomato', ms=8, zorder=5)
+        ax_est.axvspan(phot_a_lo_nm, phot_a_hi_nm, alpha=0.15, color='#2ecc71',
+                       label=f'photonic TE gap range ({lambda_nm:.0f} nm)')
+        # Mark natural frequency at current sidebar a
+        ax_est.plot(a_nm, f_natural, 's', color='#8e44ad', ms=8, zorder=5,
+                    label=f'sidebar a={a_nm} nm → {f_natural:.0f} GHz')
+        ax_est.set_xlabel('a  (nm)', fontsize=11)
+        ax_est.set_ylabel('f_gap estimate  (GHz)', fontsize=11)
+        ax_est.set_xlim(0, a_plot_max)
+        ax_est.set_ylim(0, min(f_plot[0] * 1.05, 500))
+        ax_est.legend(fontsize=9)
+        ax_est.grid(alpha=0.3)
+        ax_est.set_title(
+            'Phononic gap estimate vs a  (f ≈ 0.5·v_LA/a, rough ±30%)\n'
+            'Green band = photonic TE gap window for this emitter wavelength',
+            fontsize=9,
+        )
+        plt.tight_layout()
+        st.pyplot(fig_est)
+        plt.close(fig_est)
+
+        # ── Paste block ───────────────────────────────────────────────────────
+
+        with st.expander('Copy to sidebar'):
+            d_show = d_arr_est[0]
+            st.code(
+                f'a   = {a_est_nm:.0f} nm\n'
+                f'd/a = {d_show/a_est_nm:.3f}   (d = {d_show:.0f} nm)\n'
+                f'# recommended first sweep: r/a from 0.25 to 0.45',
+                language='text',
+            )
+            if not in_phot_range:
+                st.caption(
+                    f'For a quick pipeline test, use the current sidebar a = {a_nm} nm instead '
+                    f'(expected gap ~{f_natural:.0f} GHz). Rescale a once the gap is confirmed.'
+                )
