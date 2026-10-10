@@ -3,16 +3,42 @@ Shared utilities for COMSOL mph Python scripts.
 Imported by all simulation scripts; remote_runner.py copies it alongside them.
 """
 import sys
+import time
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 
 
-def start_client(model_file='unit_cell_3.mph'):
+def start_client(model_file='unit_cell_3.mph', port=2036, retries=6, wait=10):
+    """
+    Connect to a running COMSOL server on `port` and load `model_file`.
+
+    Before running any simulation script, start the COMSOL server on Windows:
+        "C:\\Program Files\\COMSOL\\61\\Multiphysics\\bin\\win64\\comsol.exe"
+            mphserver -port 2036 -login off
+    Keep that CMD window open for the duration of the simulation run.
+    """
     import mph
-    print('Starting COMSOL...')
+    print(f'Connecting to COMSOL server on port {port}...')
     sys.stdout.flush()
-    client = mph.start()
+    last_err = None
+    for attempt in range(1, retries + 1):
+        try:
+            client = mph.connect(port=port)
+            break
+        except Exception as e:
+            last_err = e
+            print(f'  attempt {attempt}/{retries} failed: {e}')
+            sys.stdout.flush()
+            if attempt < retries:
+                time.sleep(wait)
+    else:
+        raise RuntimeError(
+            f'Could not connect to COMSOL server on port {port} after {retries} attempts.\n'
+            'Make sure the server is running on Windows:\n'
+            '  "C:\\Program Files\\COMSOL\\61\\Multiphysics\\bin\\win64\\comsol.exe"'
+            ' mphserver -port 2036 -login off'
+        ) from last_err
     print(f'Loading {model_file}...')
     sys.stdout.flush()
     model = client.load(model_file)
