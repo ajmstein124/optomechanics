@@ -57,14 +57,22 @@ The phononic bandgap suppresses coupling of the SnV to the phonon bath — it is
 ## Current State
 
 **Stage 1 (active):**
-- [x] Phononic band structure scripts: `scripts/phononic_band.py` (single run) + `scripts/phononic_sweep.py` (parameter sweep)
-- [x] Remote execution: `scripts/remote_runner.py` (SSH to Windows COMSOL machine)
-- [x] Local Streamlit UI: `app.py` (parameter setup, unit cell preview, results visualization, Starting Point tab)
-- [ ] SSH credentials filled in (pending — user to provide)
-- [ ] First COMSOL run validated
+- [x] Simulation scripts (Python/mph): `reproduce_Si_Mech_band.py`, `diamond_unitcell_Mech_band_Gap.py`, `diamond_unitcell_OP_band_Gap.py`
+- [x] Shared utilities: `comsol_utils.py` (mphglobal, make_bz_path, start_client via mph.connect)
+- [x] Remote execution: `scripts/remote_runner.py` (SSH+SCP via Tailscale, polls results every 90s)
+- [x] SSH working: Mac → Windows via Tailscale (jvadmin@100.92.85.99), key auth set up
+- [x] unit_cell_3.mph copied to Windows (C:\Users\JVadmin\Documents\optomechanics\)
+- [x] Python packages installed on Windows (mph, numpy, scipy, matplotlib)
+- [ ] **BLOCKED: COMSOL license server (171.64.85.76) unreachable from Windows machine**
+  - COMSOL 6.4 installed (COMSOL64), .mph file is COMSOL 6.2 format
+  - License requires FlexLM server at 171.64.85.76 (same subnet, 100% packet loss)
+  - COMSOL GUI opens fine interactively ("non-commercial session" = academic license)
+  - mph.connect() approach ready; needs COMSOL server started manually once license works
+  - Next step: find working .mph files on Windows to identify which license/version was active
+- [ ] First COMSOL run validated (Si reproduction)
 
 **Stage 2 (not started):**
-- [ ] Photonic bandgap simulation set up (legume or COMSOL)
+- [ ] Photonic bandgap simulation set up
 - [ ] Phononic/photonic lattice constant conflict resolved (see co-design mediator)
 - [ ] Simultaneous bandgap demonstrated in a single structure
 
